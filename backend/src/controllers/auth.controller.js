@@ -51,56 +51,71 @@ export const login = async (req, res) => {
 
   try {
     const user = await User.findOne({ email });
-    if (!user) res.status(400).json({ message: "Invalid Credentials" });
+    if (!user) {
+      return res.status(400).json({
+        message: "Invalid Credentials",
+      });
+    }
 
-    const isPasswordCorrect = bcrypt.compare(password, user.password);
+    const isPasswordCorrect = await bcrypt.compare(password, user.password);
 
-    if (!isPasswordCorrect)
-      res.status(400).json({ message: "Invalid Credentials" });
+    if (!isPasswordCorrect) {
+      return res.status(400).json({
+        message: "Invalid Credentials",
+      });
+    }
 
     generateToken(user._id, res);
 
-    res.status(200).json({ message: "Login Successful" });
+    res.status(200).json({
+      _id: user._id,
+      fullName: user.fullName,
+      email: user.email,
+      profilePic: user.profilePic,
+    });
   } catch (error) {
-    res.status(400).send(error);
+    return res.status(400).send(error);
   }
 };
 
-export const logout=async(req,res)=>{
-    try {
-        // res.cookie("jwt","",{maxAge:0})
-        res.clearCookie("jwt");
-        res.status(200).send("Logged Out Successfully")
-    } catch (error) {
-        res.status(400).send("Logging Out Unsuccessful")
+export const logout = async (req, res) => {
+  try {
+    // res.cookie("jwt","",{maxAge:0})
+    res.clearCookie("jwt");
+    res.status(200).send("Logged Out Successfully");
+  } catch (error) {
+    res.status(400).send("Logging Out Unsuccessful");
+  }
+};
+
+export const updateProfilePic = async (req, res) => {
+  try {
+    const { profilePic } = req.body;
+    const userId = req.user._id;
+
+    if (!profilePic) {
+      return res.status(400).json({ message: "Profile Pic is required" });
     }
-}
 
-export const updateProfilePic=async(req,res)=>{
-    try {
-        const {profilePic}=req.body;
-        const userId=req.user._id; 
+    const uploadResponse = await cloudinary.uploader.upload(profilePic);
+    const updateUser = await User.findByIdAndUpdate(
+      userId,
+      { profilePic: uploadResponse.secure_url },
+      { new: true },
+    );
 
-        if(!profilePic){
-            return res.status(400).json({message:"Profile Pic is required"})
-        }
-
-        const uploadResponse=await cloudinary.uploader.upload(profilePic)
-        const updateUser=await User.findByIdAndUpdate(userId,{profilePic:uploadResponse.secure_url},{new:true})
-
-        res.status(200).json(updateUser)
-
-    } catch (error) {
-        res.status(500).json({message:"Internal Server Error"})
-    }
-}
+    res.status(200).json(updateUser);
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
 
 // Will be calling whenever a page is refreshed
-export const checkAuth=(req,res)=>{
-    try {
-        return res.status(200).json(req.user);
-    } catch (error) {
-        console.log(error)
-        return res.status(500).json(error)
-    }
-}
+export const checkAuth = (req, res) => {
+  try {
+    return res.status(200).json(req.user);
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json(error);
+  }
+};
