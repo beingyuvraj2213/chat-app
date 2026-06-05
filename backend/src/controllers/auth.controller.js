@@ -1,6 +1,7 @@
 import User from "../models/user.model.js";
 import bcrypt from "bcryptjs";
 import { generateToken } from "../lib/utils.js";
+import cloudinary from "../lib/cloudinary.js";
 
 export const signup = async (req, res) => {
   const { fullName, email, password } = req.body;
@@ -90,22 +91,39 @@ export const logout = async (req, res) => {
 
 export const updateProfilePic = async (req, res) => {
   try {
-    const { profilePic } = req.body;
+    const { profilePic, fullName } = req.body;
     const userId = req.user._id;
+    const updateFields = {};
 
-    if (!profilePic) {
-      return res.status(400).json({ message: "Profile Pic is required" });
+    if (typeof fullName === "string" && fullName.trim()) {
+      updateFields.fullName = fullName.trim();
     }
 
-    const uploadResponse = await cloudinary.uploader.upload(profilePic);
+    if (profilePic) {
+      if (profilePic.startsWith("data:")) {
+        const uploadResponse = await cloudinary.uploader.upload(profilePic);
+        updateFields.profilePic = uploadResponse.secure_url;
+      } else if (typeof profilePic === "string" && profilePic.startsWith("http")) {
+        updateFields.profilePic = profilePic;
+      } else {
+        const uploadResponse = await cloudinary.uploader.upload(profilePic);
+        updateFields.profilePic = uploadResponse.secure_url;
+      }
+    }
+
+    if (Object.keys(updateFields).length === 0) {
+      return res.status(400).json({ message: "No profile fields provided" });
+    }
+
     const updateUser = await User.findByIdAndUpdate(
       userId,
-      { profilePic: uploadResponse.secure_url },
+      updateFields,
       { new: true },
-    );
+    ).select("-password");
 
     res.status(200).json(updateUser);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
@@ -113,6 +131,7 @@ export const updateProfilePic = async (req, res) => {
 // Will be calling whenever a page is refreshed
 export const checkAuth = (req, res) => {
   try {
+    console.log(req.user)
     return res.status(200).json(req.user);
   } catch (error) {
     console.log(error);
